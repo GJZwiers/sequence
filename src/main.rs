@@ -1,17 +1,25 @@
 use substring::Substring;
 use std::thread;
 use std::sync::{Arc, Mutex};
+use std::env;
+
+enum NucleicAcid {
+    DNA,
+    RNA
+}
 
 struct Strand {
     bases: String,
     index: usize,
+    kind: NucleicAcid,
 }
 
 fn main() {
-    let dna: String = String::from("ACAGTACTAGGCTAA");
-    println!("DNA: {}", dna);
+    let args: Vec<String> = env::args().collect();
+    let dna: String = String::from(&args[1]);
+    println!("original: {}", dna);
     let mrna: String = rna(dna);
-    println!("RNA: {}", mrna);
+    println!("transcript: {}", mrna);
 }
 
 fn rna(dna: String) -> String {
@@ -29,7 +37,8 @@ fn to_subs(strand: String) -> Vec<Strand> {
         substrands.push(Strand { 
             bases: String::from(
                 strand.substring(index * seq_len, index * seq_len + seq_len)),
-            index
+            index,
+            kind: NucleicAcid::DNA
         });
         index += 1;
     }
@@ -62,13 +71,18 @@ fn transcribe(strand: Strand) -> String {
     let mut transcript = String::from("");
     for base in strand.bases.chars() {
         if base == 'A' {
-            transcript += "U";
+            match strand.kind {
+                NucleicAcid::DNA => { transcript += "T" }
+                NucleicAcid::RNA => { transcript += "U" }
+            }
         } else if base == 'T' {
             transcript += "A";
         } else if base == 'C' {
             transcript += "G";
-        } else {
+        } else if base == 'G' {
             transcript += "C";
+        } else {
+            panic!("Detected unknown nucleotide, either you are an alien or this is a mistake!");
         }
     }
     transcript
