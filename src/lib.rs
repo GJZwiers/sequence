@@ -1,4 +1,3 @@
-use std::str::FromStr;
 use std::thread;
 use std::sync::{Arc, Mutex};
 use substring::Substring;
@@ -8,32 +7,56 @@ pub enum NucleicAcid {
     RNA
 }
 
-impl FromStr for NucleicAcid {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<NucleicAcid, ()> {
-        match s {
-            "dna" => Ok(NucleicAcid::DNA),
-            "rna" => Ok(NucleicAcid::RNA),
-            _ => Err(())
-        }
-    }
-}
-
 pub struct Strand {
     pub bases: String,
     pub index: usize,
-    pub is_rna: bool,
+    pub is_dna: bool,
 }
 
 pub struct Options {
     pub seq_len: usize,
-    pub is_rna: bool,
+    pub is_dna: bool,
 }
 
 pub fn transcribe_sequence(dna: String, opts: Options) -> String {
+    let start_sites = find_start_sites(&dna);
     let substrands: Vec<Strand> = to_subs(dna, opts);
     return transcribe_strands(substrands);
+}
+
+fn find_start_sites(dna: &String) -> Vec<usize> {
+    let minus35: Vec<char> = vec!['T','T','G','A','C','A'];
+    let minus10: Vec<char> = vec!['T','A','T','A','T','T'];
+    
+    let mut i = 0;
+    let farthest = dna.chars().count() - 6;
+    let mut start_sites: Vec<usize> = vec![];
+    while i <= farthest {
+        let one = dna.substring(i, i + 6);
+        let two = dna.substring(i + 23, i + 6 + 23);
+        if is_promotor(one, &minus35) && is_promotor(two, &minus10) {
+            let start_site = i + 25 + 10;
+            start_sites.push(start_site);
+        }
+        i += 1;
+    }
+    println!("{:?}", start_sites);
+    start_sites
+}
+
+fn is_promotor(substr: &str, consensus: &Vec<char>) -> bool {
+    let mut y: u32 = 0;
+    let mut n: u32 = 0;
+    for (index, char) in substr.chars().enumerate() {
+        if char == consensus[index] {
+            y += 1;
+        } else if n <= 3 {
+            n += 1;
+        } else {
+            return false;
+        }
+    }
+    if y > 3 { true } else { false }
 }
 
 fn to_subs(strand: String, opts: Options) -> Vec<Strand> {
@@ -47,7 +70,7 @@ fn to_subs(strand: String, opts: Options) -> Vec<Strand> {
                 index * opts.seq_len,
                 index * opts.seq_len + opts.seq_len)),
             index,
-            is_rna: opts.is_rna
+            is_dna: opts.is_dna
         });
         index += 1;
     }
@@ -77,13 +100,14 @@ fn transcribe_strands(strands: Vec<Strand>) -> String {
 }
 
 fn transcribe(strand: Strand) -> String {
+    let var_base = match strand.is_dna {
+        false => "U",
+        true =>  "T",
+    };
     let mut transcript = String::from("");
     for base in strand.bases.chars() {
         if base == 'A' {
-            match strand.is_rna {
-                true =>  { transcript += "U" }
-                false => { transcript += "T" }
-            }
+            transcript += var_base;
         } else if base == 'T' {
             transcript += "A";
         } else if base == 'C' {
