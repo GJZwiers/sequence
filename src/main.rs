@@ -11,7 +11,7 @@ fn main() {
             println!("count: {:?}", contents.chars().count());
             let sequence = contents.replace("\n", "");
             let result = transcribe_sequence(sequence, Options { seq_len, is_dna });
-            println!("transcript: {}", result);
+            println!("{}", result);
         },
         Seq::Translate {} => {},
         Seq::Identify {file } => {},

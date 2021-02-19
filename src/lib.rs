@@ -21,11 +21,29 @@ pub struct Options {
 pub fn transcribe_sequence(dna: String, opts: Options) -> String {
     let start_sites: Vec<usize> = find_start_sites(&dna);
 
-    let stop_sites = find_stop_sites(&dna);
+    let params: StopSiteParams = StopSiteParams {
+        len: 8,
+        t_region_len: 4 * 8,
+        stop_seq: "TTTT",
+        stop_seq_len: 4
+    };
 
-    let gene = dna.substring(start_sites[0],  stop_sites[0]);
-    println!("gene: {}", gene);
-    let substrands: Vec<Strand> = to_subs(dna, opts);
+    let stop_sites: Vec<usize> = find_stop_sites(&dna, params);
+
+    let gene: String = String::from(dna.substring(start_sites[0],  stop_sites[0]));
+
+    let target: String = transcribe(Strand {
+        bases: String::from(&gene),
+        index: 0,
+        is_dna: true,
+    });
+
+    println!("{:?}", start_sites);
+    println!("{:?}", stop_sites);
+    println!("5`-> 3`: {}", gene);
+    println!("3`-> 5`: {}", target);
+
+    let substrands: Vec<Strand> = to_subs(target, opts);
 
     return transcribe_strands(substrands);
 }
@@ -35,9 +53,9 @@ fn find_start_sites(dna: &String) -> Vec<usize> {
     let minus10: Vec<char> = vec!['T','A','T','A','T','T'];
     
     let mut i = 0;
-    let farthest = dna.chars().count() - 6;
+    let last_start = dna.chars().count() - 6;
     let mut start_sites: Vec<usize> = vec![];
-    while i <= farthest {
+    while i <= last_start {
         let one = dna.substring(i, i + 6);
         let two = dna.substring(i + 23, i + 6 + 23);
         if is_promotor(one, &minus35) && is_promotor(two, &minus10) {
@@ -46,7 +64,6 @@ fn find_start_sites(dna: &String) -> Vec<usize> {
         }
         i += 1;
     }
-    println!("{:?}", start_sites);
     start_sites
 }
 
@@ -65,38 +82,30 @@ fn is_promotor(substr: &str, consensus: &Vec<char>) -> bool {
     if y > 3 { true } else { false }
 }
 
-struct StopSite {
-    seq: String,
-    len: u32,
-    close_seq: String,
-    close_len: u32
+struct StopSiteParams<'a> {
+    len: usize,
+    t_region_len: usize,
+    stop_seq: &'a str,
+    stop_seq_len: usize
 }
 
-fn find_stop_sites(dna: &String) -> Vec<usize> {
-    let mut i = 0;
-    let farthest = dna.chars().count() - 8;
+fn find_stop_sites(dna: &String, params: StopSiteParams) -> Vec<usize> {
+    let mut i: usize = 0;
+    let last_start: usize = dna.chars().count() - params.len;
     let mut stop_sites: Vec<usize> = vec![];
-    while i <= farthest {
-        let one: &str = dna.substring(i, i + 8);
+    while i <= last_start {
+        let n = i + params.len;
+        let first_region: &str = dna.substring(i, n);
 
-        if is_terminator(&one) {
-            let transcript: String = transcribe(Strand {
-                bases: String::from(one),
-                index: 0,
-                is_dna: true
-            });
-            let rev: String = transcript.chars().rev().collect();   // println!("reversed: {}", rev);
-            let two = dna.substring(i + 8, i + 36);
+        if is_terminator(&first_region) {
+            let second_region: &str = dna.substring(n, i + params.t_region_len);
+            let palindrome: String = make_palindrome(&first_region);
 
-            if let Some(t) = two.find(&rev) {
-                println!("1st: {}", one);
-                println!("2nd: {}", two);
-                let three = dna.substring(i + 8 + t, i + 36);
-                println!("3rd: {}", three);
-                let close = "TTTT";
+            if let Some(t) = second_region.find(&palindrome) {
+                let third_region: &str = second_region.substring(t, i + params.t_region_len);
 
-                if let Some(j) = three.find(close) {
-                    let stop_site = i + 8 + t + j + close.chars().count();
+                if let Some(j) = third_region.find(params.stop_seq) {
+                    let stop_site: usize = n + t + j + params.stop_seq_len;
                     stop_sites.push(stop_site);
                 }
             }
@@ -104,14 +113,22 @@ fn find_stop_sites(dna: &String) -> Vec<usize> {
 
         i += 1;
     }
-    println!("{:?}", stop_sites);
     stop_sites
 }
 
-fn is_terminator(substr: &str) -> bool {
+fn make_palindrome(str: &str) -> String {
+    let transcript: String = transcribe(Strand {
+        bases: String::from(str),
+        index: 0,
+        is_dna: true
+    });
+    transcript.chars().rev().collect()
+}
+
+fn is_terminator(sequence: &str) -> bool {
     let mut cs: u32 = 0;
     let mut gs: u32 = 0;
-    for char in substr.chars() {
+    for char in sequence.chars() {
         if char == 'C' {
             cs += 1;
         } else if char == 'G' {
