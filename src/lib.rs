@@ -19,8 +19,14 @@ pub struct Options {
 }
 
 pub fn transcribe_sequence(dna: String, opts: Options) -> String {
-    let start_sites = find_start_sites(&dna);
+    let start_sites: Vec<usize> = find_start_sites(&dna);
+
+    let stop_sites = find_stop_sites(&dna);
+
+    let gene = dna.substring(start_sites[0],  stop_sites[0]);
+    println!("gene: {}", gene);
     let substrands: Vec<Strand> = to_subs(dna, opts);
+
     return transcribe_strands(substrands);
 }
 
@@ -57,6 +63,67 @@ fn is_promotor(substr: &str, consensus: &Vec<char>) -> bool {
         }
     }
     if y > 3 { true } else { false }
+}
+
+struct StopSite {
+    seq: String,
+    len: u32,
+    close_seq: String,
+    close_len: u32
+}
+
+fn find_stop_sites(dna: &String) -> Vec<usize> {
+    let mut i = 0;
+    let farthest = dna.chars().count() - 8;
+    let mut stop_sites: Vec<usize> = vec![];
+    while i <= farthest {
+        let one: &str = dna.substring(i, i + 8);
+
+        if is_terminator(&one) {
+            let transcript: String = transcribe(Strand {
+                bases: String::from(one),
+                index: 0,
+                is_dna: true
+            });
+            let rev: String = transcript.chars().rev().collect();   // println!("reversed: {}", rev);
+            let two = dna.substring(i + 8, i + 36);
+
+            if let Some(t) = two.find(&rev) {
+                println!("1st: {}", one);
+                println!("2nd: {}", two);
+                let three = dna.substring(i + 8 + t, i + 36);
+                println!("3rd: {}", three);
+                let close = "TTTT";
+
+                if let Some(j) = three.find(close) {
+                    let stop_site = i + 8 + t + j + close.chars().count();
+                    stop_sites.push(stop_site);
+                }
+            }
+        }
+
+        i += 1;
+    }
+    println!("{:?}", stop_sites);
+    stop_sites
+}
+
+fn is_terminator(substr: &str) -> bool {
+    let mut cs: u32 = 0;
+    let mut gs: u32 = 0;
+    for char in substr.chars() {
+        if char == 'C' {
+            cs += 1;
+        } else if char == 'G' {
+            gs += 1;
+        }
+    }
+
+    if cs + gs > 6 && cs > 2 && gs > 2 {
+        true
+    } else  {
+        false
+    }
 }
 
 fn to_subs(strand: String, opts: Options) -> Vec<Strand> {

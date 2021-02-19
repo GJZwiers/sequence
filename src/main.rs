@@ -26,7 +26,7 @@ enum Seq {
         #[structopt(long)]
         is_dna: bool,
         #[structopt(default_value = "100", long)]
-        seq_len: usize
+        seq_len: usize,
     },
     Translate {
 
